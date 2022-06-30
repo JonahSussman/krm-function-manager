@@ -10,8 +10,11 @@ type KaffineConfig struct {
 	catalogs []string
 }
 
-func LoadConfig() error {
-
+// support both local and global config
+// global config determined by KAFFINE_GLOBAL_CONFIG env variable.
+// If unset, defaults to ~/.kaffine/config
+func LoadConfig() (KaffineConfig, error) {
+	return KaffineConfig{}, nil
 }
 
 func NewConfigCommand() *cobra.Command {

@@ -5,5 +5,7 @@ Please refer to the [enhancement proposal](https://github.com/konveyor/enhanceme
 Kaffine uses [Cobra](https://cobra.dev/) for the CLI tool.
 
 - `tool/` contains the source code for Kaffine itself.
-- `repo/` contains resources to create a Kaffine repository
 - `examples/` contains examples on how to use Kaffine
+
+## TODO 
+- Unit tests
