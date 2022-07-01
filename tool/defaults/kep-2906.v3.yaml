@@ -1,0 +1,240 @@
+openapi: 3.0.1
+info:
+  title: KRM Function Metadata
+  version: v1alpha1
+servers:
+- url: /
+paths: {}
+components:
+  schemas:
+    KRMFunctionDefinitionSpec:
+      required:
+      - description
+      - group
+      - names
+      - publisher
+      - versions
+      type: object
+      properties:
+        group:
+          type: string
+          description: group of the functionConfig
+        description:
+          type: string
+          description: brief description of the KRM function.
+        publisher:
+          type: string
+          description: the entity (e.g. organization) that produced and owns this
+            KRM function.
+        names:
+          required:
+          - kind
+          type: object
+          properties:
+            kind:
+              type: string
+              description: the Kind of the functionConfig
+          description: the resource and kind names for the KRM function
+        versions:
+          type: array
+          description: the versions of the functionConfig
+          items:
+            required:
+            - examples
+            - idempotent
+            - license
+            - name
+            - runtime
+            - schema
+            - usage
+            type: object
+            properties:
+              name:
+                type: string
+                description: Version of the functionConfig
+              schema:
+                required:
+                - openAPIV3Schema
+                type: object
+                properties:
+                  openAPIV3Schema:
+                    type: object
+                    description: openAPIV3Schema is the OpenAPI v3 schema to use for
+                      validation
+                description: a URI pointing to the schema of the functionConfig
+              idempotent:
+                type: boolean
+                description: If the function is idempotent.
+              usage:
+                type: string
+                description: |
+                  A URI pointing to a README.md that describe the details of how to
+                  use the KRM function. It should at least cover what the function
+                  does and what functionConfig does it support and it should give
+                  detailed explanation about each field in the functionConfig.
+              examples:
+                type: array
+                description: |
+                  A list of URIs that point to README.md files. At least one example
+                  must be provided. Each README.md should cover an example. It
+                  should at least cover how to get input resources, how to run it
+                  and what is the expected output.
+                items:
+                  type: string
+              license:
+                type: string
+                description: The license of the KRM function.
+                enum:
+                - Apache 2.0
+              maintainers:
+                type: array
+                description: |
+                  The maintainers for the function. It should only be used
+                  when the maintainers are different from the ones in
+                  `spec.maintainers`. When this field is specified, it
+                  override `spec.maintainers`.
+                items:
+                  type: string
+              runtime:
+                type: object
+                properties:
+                  container:
+                    required:
+                    - image
+                    type: object
+                    properties:
+                      image:
+                        type: string
+                        description: The image name of the KRM function.
+                      sha256:
+                        type: string
+                        description: |
+                          The digest of the image that can be verified against. It
+                          is required only when the image is using semver.
+                      requireNetwork:
+                        type: boolean
+                        description: If network is required to run this function.
+                      requireStorageMount:
+                        type: boolean
+                        description: If storage mount is required to run this function.
+                    description: The runtime information for container-based KRM function.
+                  exec:
+                    type: object
+                    properties:
+                      platforms:
+                        type: array
+                        description: Per platform runtime information.
+                        items:
+                          required:
+                          - arch
+                          - bin
+                          - os
+                          - sha256
+                          - uri
+                          type: object
+                          properties:
+                            bin:
+                              type: string
+                              description: The binary name.
+                            os:
+                              type: string
+                              description: The target operating system to run the
+                                KRM function.
+                              enum:
+                              - linux
+                              - darwin
+                              - windows
+                            arch:
+                              type: string
+                              description: The target architecture to run the KRM
+                                function.
+                              enum:
+                              - amd64
+                              - arm64
+                            uri:
+                              type: string
+                              description: The location to download the binary.
+                            sha256:
+                              type: string
+                              description: The degist of the binary that can be used
+                                to verify the binary.
+                    description: The runtime information for exec-based KRM function.
+                description: "The runtime information about the KRM function. At least\
+                  \ one of \ncontainer and exec must be set.\n"
+        home:
+          type: string
+          description: A URI pointing the home page of the KRM function.
+        maintainers:
+          type: array
+          description: The maintainers for the function.
+          items:
+            type: string
+        tags:
+          type: array
+          description: |
+            The tags (or keywords) of the function. e.g. mutator, validator,
+            generator, prefix, GCP.
+          items:
+            type: string
+      description: spec contains the metadata for a KRM function.
+    KRMFunctionDefinition:
+      required:
+      - apiVersion
+      - kind
+      - spec
+      type: object
+      properties:
+        apiVersion:
+          type: string
+          description: apiVersion of KRMFunctionDefinition. i.e. config.kubernetes.io/v1alpha1
+          enum:
+          - config.kubernetes.io/v1alpha1
+        kind:
+          type: string
+          description: kind of the KRMFunctionDefinition. It must be KRMFunctionDefinition.
+          enum:
+          - KRMFunctionDefinition
+        spec:
+          $ref: '#/components/schemas/KRMFunctionDefinitionSpec'
+      description: |
+        KRMFunctionDefinition is metadata that defines a KRM function
+        the same way a CustomResourceDefinition defines a custom resource.
+      x-kubernetes-group-version-kind:
+      - group: config.kubernetes.io
+        kind: KRMFunctionDefinition
+        version: v1alpha1
+    KRMFunctionCatalog:
+      required:
+      - apiVersion
+      - kind
+      - spec
+      type: object
+      properties:
+        apiVersion:
+          type: string
+          description: apiVersion of KRMFunctionCatalog. i.e. config.kubernetes.io/v1alpha1
+          enum:
+          - config.kubernetes.io/v1alpha1
+        kind:
+          type: string
+          description: kind of the KRMFunctionCatalog. It must be KRMFunctionCatalog.
+          enum:
+          - KRMFunctionCatalog
+        metadata:
+          $ref: 'https://raw.githubusercontent.com/kubernetes/kubernetes/master/api/openapi-spec/swagger.json#io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta'
+        spec:
+          required:
+          - krmFunctions
+          type: object
+          properties:
+            krmFunctions:
+              type: array
+              items:
+                $ref: '#/components/schemas/KRMFunctionDefinitionSpec'
+      description: KRMFunctionCatalog is the metadata of a collection of KRM functions.
+      x-kubernetes-group-version-kind:
+      - group: config.kubernetes.io
+        kind: KRMFunctionCatalog
+        version: v1alpha1
+    swagger:
+      type: object

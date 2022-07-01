@@ -1,42 +1,103 @@
 package main
 
 import (
+	"crypto/sha1"
+	"encoding/base64"
 	"fmt"
 	"io/ioutil"
 	"log"
+	"os"
 
-	"example.com/kaffine/config"
-	"example.com/kaffine/version"
+	"example.com/kaffine/cmd/config"
+	"example.com/kaffine/cmd/version"
+	"example.com/kaffine/defaults"
 	"gopkg.in/yaml.v2"
 
-	"github.com/go-openapi/loads"
-	"github.com/go-openapi/spec"
 	"github.com/go-openapi/strfmt"
 	"github.com/go-openapi/validate"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 )
 
-func validateSpec(fpath string) (document *loads.Document, err error) {
-	document, err = loads.Spec(fpath)
+func readAndUnmarshal(filename string, out interface{}) (err error) {
+	b, err := ioutil.ReadFile(filename)
 	if err != nil {
-		return nil, errors.Wrap(err, "Failed to load spec")
+		return errors.Wrap(err, "error loading file.")
 	}
 
-	document, err = document.Expanded(&spec.ExpandOptions{RelativeBase: fpath})
+	err = yaml.Unmarshal(b, out)
 	if err != nil {
-		return nil, errors.Wrap(err, "Failed to expand spec")
+		return errors.Wrap(err, "error unmarshalling YAML.")
 	}
 
-	err = validate.Spec(document, strfmt.Default)
-	if err != nil {
-		return nil, errors.Wrap(err, "Spec is invalid")
-	}
-
-	return
+	return nil
 }
 
-var catalogSchema *spec.Schema
+type KaffineConfig struct {
+	Directory  string
+	ConfigYaml KaffineConfigYaml
+	Catalogs   map[string]KRMFunctionCatalog
+}
+
+type KaffineConfigYaml struct {
+	Catalogs []string
+}
+
+// Not type safe, good for prototyping
+type KRMFunctionCatalog map[string]interface{}
+
+func NewKaffineConfig(directory string) (c *KaffineConfig, err error) {
+	// Create .kaffine directory
+	err = os.MkdirAll(directory, os.ModePerm)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create .kaffine/catalogs directory
+	err = os.MkdirAll(directory+"/catalogs", os.ModePerm)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create .kaffine/config.yaml if not exists
+	if _, err := os.Stat(directory + "config.yaml"); errors.Is(err, os.ErrNotExist) {
+		err := os.WriteFile(directory+"config.yaml", defaults.ConfigYaml, 0644)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Create .kaffine/installed.yaml if not exists
+	if _, err := os.Stat(directory + "installed.yaml"); errors.Is(err, os.ErrNotExist) {
+		err := os.WriteFile(directory+"installed.yaml", defaults.BlankCatalog, 0644)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	c = new(KaffineConfig)
+	c.Directory = directory
+	err = readAndUnmarshal(directory+"config.yaml", &(c.ConfigYaml))
+	if err != nil {
+		return nil, err
+	}
+
+	// Get sha of catalog
+	for _, uri := range c.ConfigYaml.Catalogs {
+		hasher := sha1.New()
+		hasher.Write([]byte(uri))
+		shaStr := base64.URLEncoding.EncodeToString(hasher.Sum(nil))
+		fmt.Println(shaStr)
+		// shaBytes := sha1.Sum([]byte(uri))
+		// if _, err := os.Stat(directory + "catalogs/" + string(sha) + ".yaml"); errors.Is(err, os.ErrNotExist) {
+
+		// } else {
+
+		// }
+	}
+
+	return c, nil
+}
 
 var rootCmd = &cobra.Command{
 	Use:   "kaffine",
@@ -46,38 +107,31 @@ var rootCmd = &cobra.Command{
 	},
 }
 
+var LocalConfig *KaffineConfig
+
 func main() {
-	catalogSchema = new(spec.Schema)
-
-	schemaBytes, loadSchemaErr := ioutil.ReadFile("kep-2906.yaml")
-	if loadSchemaErr != nil {
-		log.Fatalf("error loading spec file. %v\n", loadSchemaErr)
-	}
-
-	unmarshalSchemaErr := yaml.Unmarshal(schemaBytes, &catalogSchema)
-	if unmarshalSchemaErr != nil {
-		log.Fatalf("error unmarshalling spec YAML. %v\n", unmarshalSchemaErr)
-	}
+	var err error
 
 	catalog := map[string]interface{}{}
 
-	catalogBytes, loadCatalogErr := ioutil.ReadFile("../examples/catalogs/example-catalog.yaml")
-	if loadCatalogErr != nil {
-		log.Fatalf("error loading catalog file. %v\n", loadCatalogErr)
+	err = readAndUnmarshal("../examples/catalogs/example-catalog.yaml", catalog)
+	if err != nil {
+		log.Fatalf("error loading catalog file. %v\n", err)
 	}
 
-	unmarshalCatalogErr := yaml.Unmarshal(catalogBytes, &catalog)
-	if unmarshalCatalogErr != nil {
-		log.Fatalf("error unmarshalling catalog YAML. %v\n", unmarshalCatalogErr)
+	err = validate.AgainstSchema(defaults.CatalogSchema, catalog, strfmt.Default)
+	if err != nil {
+		log.Fatalf("error validating catalog. %v\n", err)
 	}
 
-	validateErr := validate.AgainstSchema(catalogSchema, catalog, strfmt.Default)
-	if validateErr != nil {
-		log.Fatalf("error validating catalog. %v\n", validateErr)
+	LocalConfig, err = NewKaffineConfig("./.kaffine/")
+	if err != nil {
+		log.Fatalf("error loading config. %v\n", err)
 	}
-	/* else {
-		fmt.Printf("%v", catalog)
-	} */
+
+	fmt.Println(LocalConfig)
+
+	return
 
 	rootCmd.AddCommand(version.NewVersionCommand())
 	rootCmd.AddCommand(config.NewConfigCommand())
