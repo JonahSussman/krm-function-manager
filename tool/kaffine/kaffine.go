@@ -11,6 +11,8 @@ import (
 	"sort"
 
 	"example.com/kaffine/helpers"
+	"github.com/go-openapi/strfmt"
+	"github.com/go-openapi/validate"
 	"gopkg.in/yaml.v2"
 )
 
@@ -19,16 +21,17 @@ var LocalConfig *KConfig
 type KConfig struct {
 	Directory   string                        `yaml:"-"`
 	CatalogData map[string]KRMFunctionCatalog `yaml:"-"`
-	ConfigYaml  KConfigYaml
-	// Catalogs []string
-}
 
-type KConfigYaml struct {
 	Catalogs []string
 }
 
 // TODO: Make into actual type
 type KRMFunctionCatalog map[string]interface{}
+
+// FIXME: Does not currently work...
+func ValidateCatalog(catalog interface{}) error {
+	return validate.AgainstSchema(CatalogSchema, catalog, strfmt.Default)
+}
 
 // Directory must end with '/' character
 // TODO: Change to use Go filepath
@@ -65,7 +68,7 @@ func NewKConfig(directory string) (c *KConfig, err error) {
 	c = new(KConfig)
 	c.Directory = directory
 	c.CatalogData = map[string]KRMFunctionCatalog{}
-	err = helpers.ReadAndUnmarshal(directory+"config.yaml", &(c.ConfigYaml))
+	err = helpers.ReadAndUnmarshal(directory+"config.yaml", c)
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +82,9 @@ func NewKConfig(directory string) (c *KConfig, err error) {
 }
 
 func (c *KConfig) SaveToYaml() error {
-	data, err := yaml.Marshal(c.ConfigYaml)
+	sort.Strings(c.Catalogs)
+
+	data, err := yaml.Marshal(c)
 	if err != nil {
 		return err
 	}
@@ -97,7 +102,7 @@ func (c *KConfig) SaveToYaml() error {
 
 // Fetch catalog from URI and put in .kaffine/catalogs/<sha-of-uri>.yaml
 func (c *KConfig) FetchCatalog(uri string) error {
-	fmt.Println("Fetching: ", uri)
+	fmt.Println("Fetching:", uri)
 	dst := c.Directory + "catalogs/" + helpers.OneLineHash(uri) + ".yaml"
 
 	u, e := url.ParseRequestURI(uri)
@@ -125,13 +130,25 @@ func (c *KConfig) FetchCatalog(uri string) error {
 		}
 	}
 
-	// TODO: Validate data
+	catalog := map[string]interface{}{}
+
+	err = yaml.Unmarshal(data, catalog)
+	if err != nil {
+		return err
+	}
+
+	err = validate.AgainstSchema(CatalogSchema, catalog, strfmt.Default)
+	if err != nil {
+		return err
+	}
 
 	out, err := os.Create(dst)
 	if err != nil {
 		return err
 	}
 	defer out.Close()
+
+	c.CatalogData[uri] = catalog
 	out.Write(data)
 
 	return nil
@@ -139,14 +156,14 @@ func (c *KConfig) FetchCatalog(uri string) error {
 
 func (c *KConfig) LazySyncListToFolder() error {
 	// Load catalog into struct
-	sort.Slice(c.ConfigYaml.Catalogs, func(i, j int) bool {
-		return helpers.OneLineHash(c.ConfigYaml.Catalogs[i]) < helpers.OneLineHash(c.ConfigYaml.Catalogs[j])
+	sort.Slice(c.Catalogs, func(i, j int) bool {
+		return helpers.OneLineHash(c.Catalogs[i]) < helpers.OneLineHash(c.Catalogs[j])
 	})
 
 	// FIXME: Inefficient, better way?
-	for i := 0; i < len(c.ConfigYaml.Catalogs)-1; i++ {
-		if c.ConfigYaml.Catalogs[i] == c.ConfigYaml.Catalogs[i+1] {
-			c.ConfigYaml.Catalogs = append(c.ConfigYaml.Catalogs[:i], c.ConfigYaml.Catalogs[i+1:]...)
+	for i := 0; i < len(c.Catalogs)-1; i++ {
+		if c.Catalogs[i] == c.Catalogs[i+1] {
+			c.Catalogs = append(c.Catalogs[:i], c.Catalogs[i+1:]...)
 			i--
 		}
 	}
@@ -162,10 +179,10 @@ func (c *KConfig) LazySyncListToFolder() error {
 	i, j := 0, 0
 
 	fetchOrDelete := func() {
-		err := c.FetchCatalog(c.ConfigYaml.Catalogs[i])
+		err := c.FetchCatalog(c.Catalogs[i])
 		if err != nil {
-			fmt.Printf("Error fetching catalog \"%s\". Removing from list.\n", c.ConfigYaml.Catalogs[i])
-			c.ConfigYaml.Catalogs = append(c.ConfigYaml.Catalogs[:i], c.ConfigYaml.Catalogs[i+1:]...)
+			fmt.Printf("%v. Error fetching catalog.\nRemoving \"%s\" from catalog list.\n", err, c.Catalogs[i])
+			c.Catalogs = append(c.Catalogs[:i], c.Catalogs[i+1:]...)
 		} else {
 			i++
 		}
@@ -177,13 +194,11 @@ func (c *KConfig) LazySyncListToFolder() error {
 	}
 
 	// Two pointers
-	for i < len(c.ConfigYaml.Catalogs) && j < len(catalogFileInfo) {
+	for i < len(c.Catalogs) && j < len(catalogFileInfo) {
 		n := catalogFileInfo[j].Name()
 		n = n[:len(n)-len(filepath.Ext(n))]
 
-		h := helpers.OneLineHash(c.ConfigYaml.Catalogs[i])
-
-		fmt.Printf("Comparing %s and %s\n", h, n)
+		h := helpers.OneLineHash(c.Catalogs[i])
 
 		if h == n {
 			i++
@@ -195,7 +210,7 @@ func (c *KConfig) LazySyncListToFolder() error {
 			removeOldCat()
 		}
 	}
-	for i < len(c.ConfigYaml.Catalogs) {
+	for i < len(c.Catalogs) {
 		fetchOrDelete()
 	}
 	for j < len(catalogFileInfo) {
@@ -203,4 +218,8 @@ func (c *KConfig) LazySyncListToFolder() error {
 	}
 
 	return nil
+}
+
+func (c *KConfig) SearchForFunction(fname string) error {
+
 }

@@ -12,7 +12,7 @@ import (
 var DefaultConfigYaml []byte
 
 // var catalogSpecFS embed.FS
-//go:embed kep-2906.yaml
+//go:embed kep-2906.v3.yaml
 var CatalogSpec []byte
 var CatalogSchema *spec.Schema
 
