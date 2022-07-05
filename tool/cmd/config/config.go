@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 
+	"example.com/kaffine/kaffine"
 	"github.com/spf13/cobra"
 )
 
@@ -21,6 +22,8 @@ func NewConfigCommand() *cobra.Command {
 		Short: "Adds catalog to list of managed catalogs in Kaffine",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			fmt.Println("add-catalog!")
+
+			kaffine.LocalConfig.ConfigYaml.Catalogs = append(kaffine.LocalConfig.ConfigYaml.Catalogs, args[len(args)-1])
 
 			return nil
 		},

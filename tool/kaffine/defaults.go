@@ -1,4 +1,4 @@
-package defaults
+package kaffine
 
 import (
 	_ "embed"
@@ -9,7 +9,7 @@ import (
 )
 
 //go:embed config.yaml
-var ConfigYaml []byte
+var DefaultConfigYaml []byte
 
 // var catalogSpecFS embed.FS
 //go:embed kep-2906.yaml
@@ -17,7 +17,7 @@ var CatalogSpec []byte
 var CatalogSchema *spec.Schema
 
 //go:embed catalog.yaml
-var BlankCatalog []byte
+var DefaultBlankCatalog []byte
 
 func init() {
 	var err error
