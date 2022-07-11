@@ -18,13 +18,23 @@ import (
 
 var LocalConfig *KConfig
 
+// Internal function registry?
 type KConfig struct {
 	Directory        string                         `json:"-"`
 	CatalogData      map[string]*KRMFunctionCatalog `json:"-"`
 	InstalledCatalog *KRMFunctionCatalog            `json:"-"`
 	ModifiedCatalog  map[string]bool                `json:"-"`
 
-	Catalogs []string `json:"catalogs"`
+	Catalogs  []string `json:"catalogs"`
+	Installed struct {
+		Functions []KRMFunctionBrief `json:"functions"`
+	} `json:"installed"`
+}
+
+type KRMFunctionBrief struct {
+	From          string `json:"from"`
+	Name          string `json:"name"`
+	IgnoreUpdates bool   `json:"ignoreUpdates"`
 }
 
 // Directory must end with '/' character
