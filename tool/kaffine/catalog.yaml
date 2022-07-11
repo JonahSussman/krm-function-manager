@@ -1,6 +1,6 @@
 apiVersion: config.kubernetes.io/v1alpha1
-kind: Catalog
+kind: KRMFunctionCatalog
 metadata: 
   name: "kaffine-output-catalog"
 spec: 
-  krmFunctions:
+  krmFunctions: []

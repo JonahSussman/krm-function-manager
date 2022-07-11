@@ -6,8 +6,8 @@ import (
 	"io/ioutil"
 	"os"
 
+	"github.com/ghodss/yaml"
 	"github.com/pkg/errors"
-	"gopkg.in/yaml.v2"
 )
 
 func ReadAndUnmarshal(filename string, out interface{}) (err error) {
@@ -20,6 +20,23 @@ func ReadAndUnmarshal(filename string, out interface{}) (err error) {
 	if err != nil {
 		return errors.Wrap(err, "error unmarshalling YAML.")
 	}
+
+	return nil
+}
+
+func MarshalAndWrite(filename string, in interface{}) error {
+	data, err := yaml.Marshal(in)
+	if err != nil {
+		return err
+	}
+
+	file, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	file.Write(data)
 
 	return nil
 }
