@@ -1,38 +1,36 @@
 package kaffine
 
 import (
+	"fmt"
 	"sort"
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type KRMFunctionCatalog struct {
+type FunctionCatalog struct {
 	// required
 	APIVersion string `json:"apiVersion"`
 	Kind       string `json:"kind"`
 	Spec       struct {
-		KrmFunctions []*KRMFunctionDefinitionSpec `json:"krmFunctions"`
+		KrmFunctions []FunctionDefinition `json:"krmFunctions"`
 	} `json:"spec"`
 	// optional
 	Metadata *v1.ObjectMeta `json:"metadata,omitempty"`
 }
 
-func NewKRMFunctionCatalog(name string) (*KRMFunctionCatalog, error) {
-	cat := &KRMFunctionCatalog{}
-	cat.APIVersion = "config.kubernetes.io/v1alpha1"
-	cat.Kind = "KRMFunctionCatalog"
-	cat.Metadata = &v1.ObjectMeta{}
-	cat.Metadata.Name = name
-	cat.Metadata.SetCreationTimestamp(v1.Now())
+func MakeFunctionCatalog(name string) (fc FunctionCatalog) {
+	fc.APIVersion = "config.kubernetes.io/v1alpha1"
+	fc.Kind = "KRMFunctionCatalog"
+	fc.Metadata = &v1.ObjectMeta{}
+	fc.Metadata.Name = name
+	fc.Metadata.SetCreationTimestamp(v1.Now())
 
-	return cat, nil
+	return
 }
 
-func (m *KRMFunctionCatalog) Validate() error {
-	return nil
-}
+var IgnoreAutoUpdates string = "kaffine.config/ignore-auto-updates"
 
-type KRMFunctionDefinitionSpec struct {
+type FunctionDefinition struct {
 	// required
 	Group       string `json:"group"`
 	Description string `json:"description"`
@@ -40,22 +38,16 @@ type KRMFunctionDefinitionSpec struct {
 	Names       struct {
 		Kind string `json:"kind"`
 	} `json:"names"`
-	Versions []*KRMFunctionVersion `json:"versions"`
+	Versions []FunctionVersion `json:"versions"`
 	// optional
 	Home        string         `json:"home,omitempty"`
 	Maintainers []string       `json:"maintainers,omitempty"`
 	Tags        []string       `json:"tags,omitempty"`
 	Metadata    *v1.ObjectMeta `json:"metadata,omitempty"`
-	// kaffine.config/from-catalog
-	// kaffine.config/ignore-auto-updates
-}
-
-func (m *KRMFunctionDefinitionSpec) Validate() error {
-	return nil
 }
 
 // Right now just lexicographically compares the version names
-func (m *KRMFunctionDefinitionSpec) GetHighestVersion() *KRMFunctionVersion {
+func (m FunctionDefinition) GetHighestVersion() FunctionVersion {
 	sort.Slice(m.Versions, func(i, j int) bool {
 		return m.Versions[i].Name < m.Versions[j].Name
 	})
@@ -63,11 +55,44 @@ func (m *KRMFunctionDefinitionSpec) GetHighestVersion() *KRMFunctionVersion {
 	return m.Versions[len(m.Versions)-1]
 }
 
-func (m *KRMFunctionDefinitionSpec) GetShortName() string {
-	return m.Group + "/" + m.Names.Kind + ":" + m.GetHighestVersion().Name
+func (m FunctionDefinition) GetVersion(v string) (fv FunctionVersion, err error) {
+	for _, fv = range m.Versions {
+		if fv.Name == v {
+			return fv, nil
+		}
+	}
+
+	return fv, fmt.Errorf("No version '%s' in function '%s'", m.GroupName(), v)
 }
 
-type KRMFunctionVersion struct {
+// Get rightmost @
+// Get rightmost /
+func ToGroupNameVersion(nameString string) (group string, name string, version string) {
+	for i := len(nameString) - 1; i >= 0; i-- {
+		if nameString[i:i+1] == "@" {
+			version = nameString[i+1:]
+			nameString = nameString[:i]
+			break
+		}
+	}
+
+	for i := len(nameString) - 1; i >= 0; i-- {
+		if nameString[i:i+1] == "/" {
+			group = nameString[:i]
+			nameString = nameString[i+1:]
+			break
+		}
+	}
+
+	name = nameString
+	return
+}
+
+func (m FunctionDefinition) GroupName() string {
+	return m.Group + "/" + m.Names.Kind // + ":" + m.GetHighestVersion().Name
+}
+
+type FunctionVersion struct {
 	// required
 	// Schema     struct{ OpenAPIV3Schema v1beta1.JSONSchemaProps `json:"openAPIV3Schema"` }  `json:"schema"`
 	Name       string   `json:"name"`
@@ -76,18 +101,14 @@ type KRMFunctionVersion struct {
 	Examples   []string `json:"examples"`
 	License    string   `json:"license"`
 	Runtime    struct {
-		Container *KRMFunctionRuntimeContainer `json:"container,omitempty"`
-		Exec      *KRMFunctionRuntimeExec      `json:"exec,omitempty"`
+		Container FunctionRuntimeContainer `json:"container,omitempty"`
+		Exec      FunctionRuntimeExec      `json:"exec,omitempty"`
 	} `json:"runtime"`
 	// optional
 	Maintainers []string `json:"maintainers,omitempty"`
 }
 
-func (m *KRMFunctionVersion) Validate() error {
-	return nil
-}
-
-type KRMFunctionRuntimeContainer struct {
+type FunctionRuntimeContainer struct {
 	// required
 	Image string `json:"image"`
 	// optional
@@ -96,28 +117,16 @@ type KRMFunctionRuntimeContainer struct {
 	RequireStorageMount bool   `json:"requireStorageMount,omitempty"`
 }
 
-func (m *KRMFunctionRuntimeContainer) Validate() error {
-	return nil
-}
-
-type KRMFunctionRuntimeExec struct {
+type FunctionRuntimeExec struct {
 	// required
-	Platforms []*KRMFunctionRuntimePlatform `json:"platforms"`
+	Platforms []FunctionRuntimePlatform `json:"platforms"`
 }
 
-func (m *KRMFunctionRuntimeExec) Validate() error {
-	return nil
-}
-
-type KRMFunctionRuntimePlatform struct {
+type FunctionRuntimePlatform struct {
 	// required
 	Bin    string `json:"bin"`
 	Os     string `json:"os"`
 	Arch   string `json:"arch"`
 	Uri    string `json:"uri"`
 	Sha256 string `json:"sha256"`
-}
-
-func (m *KRMFunctionRuntimePlatform) Validate() error {
-	return nil
 }

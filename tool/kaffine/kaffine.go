@@ -8,7 +8,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 
 	"example.com/kaffine/helpers"
@@ -24,17 +23,10 @@ type KConfig struct {
 	CatalogData      map[string]*KRMFunctionCatalog `json:"-"`
 	InstalledCatalog *KRMFunctionCatalog            `json:"-"`
 	ModifiedCatalog  map[string]bool                `json:"-"`
+	CatalogURISet    map[string]bool                `json:"-"`
+	CatalogHashSet   map[string]bool                `json:"-"`
 
-	Catalogs  []string `json:"catalogs"`
-	Installed struct {
-		Functions []KRMFunctionBrief `json:"functions"`
-	} `json:"installed"`
-}
-
-type KRMFunctionBrief struct {
-	From          string `json:"from"`
-	Name          string `json:"name"`
-	IgnoreUpdates bool   `json:"ignoreUpdates"`
+	Catalogs []string `json:"catalogs"`
 }
 
 // Directory must end with '/' character
@@ -64,8 +56,10 @@ func NewKConfig(directory string) (c *KConfig, err error) {
 	c = new(KConfig)
 	c.Directory = directory
 	c.CatalogData = map[string]*KRMFunctionCatalog{}
-	c.ModifiedCatalog = map[string]bool{}
 	c.InstalledCatalog = &KRMFunctionCatalog{}
+	c.ModifiedCatalog = map[string]bool{}
+	c.CatalogURISet = map[string]bool{}
+	c.CatalogHashSet = map[string]bool{}
 
 	if !helpers.FileExists(directory + "installed.yaml") {
 		c.InstalledCatalog, err = NewKRMFunctionCatalog("Kaffine Output Catalog")
@@ -82,94 +76,36 @@ func NewKConfig(directory string) (c *KConfig, err error) {
 		return nil, err
 	}
 
-	// Ensure only unique values in catalogs array
-	sort.Slice(c.Catalogs, func(i, j int) bool {
-		return helpers.OneLineHash(c.Catalogs[i]) < helpers.OneLineHash(c.Catalogs[j])
-	})
-
-	// FIXME: Inefficient, better way?
 	for i := 0; i < len(c.Catalogs)-1; i++ {
-		if c.Catalogs[i] == c.Catalogs[i+1] {
-			c.Catalogs = append(c.Catalogs[:i], c.Catalogs[i+1:]...)
-			i--
-		}
+		c.CatalogURISet[c.Catalogs[i]] = true
+		c.CatalogHashSet[helpers.OneLineHash(c.Catalogs[i])] = true
 	}
 
 	return c, nil
 }
 
 func (c *KConfig) Save() error {
-	// Sort on hash
-	sort.Slice(c.Catalogs, func(i, j int) bool {
-		return helpers.OneLineHash(c.Catalogs[i]) < helpers.OneLineHash(c.Catalogs[j])
-	})
-
-	// Ensure uniqueness
-	for i := 0; i < len(c.Catalogs)-1; i++ {
-		if c.Catalogs[i] == c.Catalogs[i+1] {
-			c.Catalogs = append(c.Catalogs[:i], c.Catalogs[i+1:]...)
-			i--
-		}
-	}
-
-	// Get all cached catalogs
+	// Remove catalogs no longer tracked
 	catalogFileInfo, err := ioutil.ReadDir(c.Directory + "catalogs")
 	if err != nil {
 		return err
 	}
-	sort.Slice(catalogFileInfo, func(i, j int) bool {
-		return catalogFileInfo[i].Name() < catalogFileInfo[j].Name()
-	})
 
-	i, j := 0, 0
+	for _, info := range catalogFileInfo {
+		name := info.Name()
+		noext := name[:len(name)-len(filepath.Ext(name))]
 
-	cacheModifiedCat := func() {
-		uri := c.Catalogs[i]
-		dst := c.Directory + "catalogs/" + helpers.OneLineHash(uri) + ".yaml"
-
-		helpers.MarshalAndWrite(dst, c.CatalogData[uri])
-	}
-
-	removeOldCat := func() {
-		os.Remove(c.Directory + "catalogs/" + catalogFileInfo[j].Name())
-	}
-
-	// Two pointers
-	for i < len(c.Catalogs) && j < len(catalogFileInfo) {
-		n := catalogFileInfo[j].Name()
-		n = n[:len(n)-len(filepath.Ext(n))]
-
-		h := helpers.OneLineHash(c.Catalogs[i])
-
-		if h == n {
-			if c.ModifiedCatalog[c.Catalogs[i]] {
-				cacheModifiedCat()
-			}
-
-			i++
-			j++
-
-			continue
-		} else if h < n {
-			if c.ModifiedCatalog[c.Catalogs[i]] {
-				cacheModifiedCat()
-			}
-
-			i++
-		} else { // h > n
-			removeOldCat()
-			j++
+		if !c.CatalogHashSet[noext] {
+			os.Remove(c.Directory + "catalogs/" + name)
 		}
 	}
-	for i < len(c.Catalogs) {
-		if c.ModifiedCatalog[c.Catalogs[i]] {
-			cacheModifiedCat()
+
+	for uri, _ := range c.CatalogURISet {
+		if c.ModifiedCatalog[uri] {
+			dst := c.Directory + "catalogs/" + helpers.OneLineHash(uri) + ".yaml"
+
+			helpers.MarshalAndWrite(dst, c.CatalogData[uri])
 		}
-		i++
-	}
-	for j < len(catalogFileInfo) {
-		removeOldCat()
-		j++
 	}
 
 	err = helpers.MarshalAndWrite(c.Directory+"config.yaml", c)
@@ -230,8 +166,6 @@ func (c *KConfig) GetCatalog(uri string) (*KRMFunctionCatalog, error) {
 
 // Fetch catalog from URI
 func FetchCatalog(uri string) (*KRMFunctionCatalog, error) {
-	// fmt.Fprintf(os.Stderr, "Fetching: %s", uri)
-
 	u, e := url.ParseRequestURI(uri)
 	if e != nil {
 		return nil, e
@@ -283,18 +217,15 @@ func (c *KConfig) AddCatalog(uri string) (*KRMFunctionCatalog, error) {
 }
 
 func (c *KConfig) RemoveCatalog(uri string) error {
-	for i, x := range c.Catalogs {
-		if uri != x {
-			continue
-		}
-
-		c.Catalogs = append(c.Catalogs[:i], c.Catalogs[i+1:]...)
-		delete(c.CatalogData, uri)
-		// c.ModifiedCatalog[uri] = true
-		return nil
+	i := slices.Index(c.Catalogs, uri)
+	if i == -1 {
+		return errors.New("catalog not in list of managed catalogs")
 	}
 
-	return errors.New("catalog not in list of managed catalogs")
+	c.Catalogs = append(c.Catalogs[:i], c.Catalogs[i+1:]...)
+	delete(c.CatalogData, uri)
+	// c.ModifiedCatalog[uri] = true
+	return nil
 }
 
 // TODO: Add function name formatting <group>/<name>:<version>
@@ -304,12 +235,13 @@ func (c *KConfig) SearchForFunction(fname string) (*KRMFunctionCatalog, error) {
 		return nil, err
 	}
 
-	lowerFname := strings.ToLower(fname)
+	// lowerFname := strings.ToLower(fname)
 
 	for _, searchCatName := range LocalConfig.Catalogs {
 		searchCat, _ := LocalConfig.GetCatalog(searchCatName)
 		for _, searchFunc := range searchCat.Spec.KrmFunctions {
-			if strings.Contains(strings.ToLower(searchFunc.Names.Kind), lowerFname) {
+			// if strings.Contains(strings.ToLower(searchFunc.Names.Kind), lowerFname) {
+			if strings.Contains(searchFunc.Names.Kind, fname) {
 				cat.Spec.KrmFunctions = append(cat.Spec.KrmFunctions, searchFunc)
 			}
 		}
@@ -349,6 +281,7 @@ func (c *KConfig) AddFunction(fname string) (*KRMFunctionDefinitionSpec, error) 
 	krmFunc.Versions = []*KRMFunctionVersion{krmFunc.GetHighestVersion()}
 	// FIXME: Make a deep copy!
 	LocalConfig.InstalledCatalog.Spec.KrmFunctions = append(LocalConfig.InstalledCatalog.Spec.KrmFunctions, krmFunc)
+	// LocalConfig.InstalledCatalog.Metadata.Annotations[]
 
 	// fmt.Println(LocalConfig.InstalledCatalog.Spec.KrmFunctions)
 
