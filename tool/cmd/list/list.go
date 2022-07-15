@@ -3,8 +3,8 @@ package list
 import (
 	"fmt"
 
-	"example.com/kaffine/kaffine"
-	"github.com/ghodss/yaml"
+	"kaffine-mod/kaffine"
+
 	"github.com/spf13/cobra"
 )
 
@@ -13,7 +13,7 @@ func NewListCommand() *cobra.Command {
 		Use:   "list",
 		Short: "Lists the current installed catalog of functions",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			b, err := yaml.Marshal(kaffine.LocalConfig.InstalledCatalog)
+			b, err := kaffine.Fm.GenerateInstalledCatalog()
 			if err != nil {
 				return err
 			}
