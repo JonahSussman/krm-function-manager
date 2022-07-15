@@ -3,9 +3,10 @@ package config
 import (
 	"fmt"
 
-	"example.com/kaffine/kaffine"
-	"github.com/ghodss/yaml"
+	"kaffine-mod/kaffine"
+
 	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v2"
 )
 
 // support both local and global config
@@ -24,7 +25,7 @@ func NewConfigCommand() *cobra.Command {
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uri := args[len(args)-1]
-			_, err := kaffine.LocalConfig.AddCatalog(uri)
+			err := kaffine.Fm.CatMan.AddCatalog(uri)
 			if err != nil {
 				return err
 			}
@@ -40,7 +41,7 @@ func NewConfigCommand() *cobra.Command {
 		Short: "Removes catalog to list of managed catalogs in Kaffine",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uri := args[len(args)-1]
-			err := kaffine.LocalConfig.RemoveCatalog(uri)
+			_, err := kaffine.Fm.CatMan.RemoveCatalog(uri)
 			if err != nil {
 				return err
 			}
@@ -55,7 +56,8 @@ func NewConfigCommand() *cobra.Command {
 		Use:   "list",
 		Short: "Lists current configuration",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			data, err := yaml.Marshal(kaffine.LocalConfig)
+			kaffine.Fm.UpdateConfig()
+			data, err := yaml.Marshal(kaffine.Fm.Cfg)
 			if err != nil {
 				return err
 			}

@@ -3,7 +3,8 @@ package remove
 import (
 	"fmt"
 
-	"example.com/kaffine/kaffine"
+	"kaffine-mod/kaffine"
+
 	"github.com/spf13/cobra"
 )
 
@@ -13,12 +14,12 @@ func NewRemoveCommand() *cobra.Command {
 		Short: "Searches the managed catalogs for a function with the specified name, and installs it",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			fname := args[len(args)-1]
-			krmFunc, err := kaffine.LocalConfig.RemoveFunction(fname)
+			krmFunc, err := kaffine.Fm.RemoveFunctionDefinition(fname)
 			if err != nil {
 				return err
 			}
 
-			fmt.Println("Successfully removed KRM Function '" + krmFunc.GetShortName() + "'")
+			fmt.Println("Successfully removed KRM Function '" + krmFunc.GroupName() + "'")
 
 			return nil
 		},

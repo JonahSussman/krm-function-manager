@@ -62,11 +62,10 @@ func (m FunctionDefinition) GetVersion(v string) (fv FunctionVersion, err error)
 		}
 	}
 
-	return fv, fmt.Errorf("No version '%s' in function '%s'", m.GroupName(), v)
+	return fv, fmt.Errorf("no version '%s' in function '%s'", m.GroupName(), v)
 }
 
-// Get rightmost @
-// Get rightmost /
+// Get rightmost @ and get rightmost /
 func ToGroupNameVersion(nameString string) (group string, name string, version string) {
 	for i := len(nameString) - 1; i >= 0; i-- {
 		if nameString[i:i+1] == "@" {
@@ -89,7 +88,7 @@ func ToGroupNameVersion(nameString string) (group string, name string, version s
 }
 
 func (m FunctionDefinition) GroupName() string {
-	return m.Group + "/" + m.Names.Kind // + ":" + m.GetHighestVersion().Name
+	return m.Group + "/" + m.Names.Kind
 }
 
 type FunctionVersion struct {

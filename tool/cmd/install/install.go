@@ -3,7 +3,8 @@ package install
 import (
 	"fmt"
 
-	"example.com/kaffine/kaffine"
+	"kaffine-mod/kaffine"
+
 	"github.com/spf13/cobra"
 )
 
@@ -13,12 +14,12 @@ func NewInstallCommand() *cobra.Command {
 		Short: "Searches the managed catalogs for a function with the specified name, and installs it",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			fname := args[len(args)-1]
-			krmFunc, err := kaffine.LocalConfig.AddFunction(fname)
+			fn, err := kaffine.Fm.AddFunctionDefinition(fname)
 			if err != nil {
 				return err
 			}
 
-			fmt.Println("Successfully added KRM Function '" + krmFunc.GetShortName() + "'")
+			fmt.Println("Successfully added KRM Function '" + fn.GroupName() + "'")
 
 			return nil
 		},

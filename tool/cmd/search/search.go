@@ -2,9 +2,8 @@ package search
 
 import (
 	"fmt"
+	"kaffine-mod/kaffine"
 
-	"example.com/kaffine/kaffine"
-	"github.com/ghodss/yaml"
 	"github.com/spf13/cobra"
 )
 
@@ -14,17 +13,12 @@ func NewSearchCommand() *cobra.Command {
 		Short: "Searches the managed catalogs for a function with the specified name",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			fname := args[len(args)-1]
-			res, err := kaffine.LocalConfig.SearchForFunction(fname)
+			res, err := kaffine.Fm.SearchFunctionDefintions(fname)
 			if err != nil {
 				return err
 			}
 
-			b, err := yaml.Marshal(res)
-			if err != nil {
-				return err
-			}
-
-			fmt.Println(string(b))
+			fmt.Println(string(res))
 
 			return nil
 		},

@@ -14,6 +14,8 @@ var Directory string = ""
 //go:embed default_config.yaml
 var DefaultConfig []byte
 
+var Fm *FunctionManager
+
 // Helper functions
 func SHA1(s string) string {
 	a := sha1.New()
@@ -50,10 +52,16 @@ func InitializeGlobals() (err error) {
 		return err
 	}
 
+	Fm = NewFunctionManager(Directory)
+
 	return
 }
 
 func DestroyGlobals() (err error) {
+	err = Fm.Save()
+	if err != nil {
+		return
+	}
 
 	return
 }
